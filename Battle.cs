@@ -13,161 +13,121 @@ namespace Console_RPG;
 */
 public static class Battle
 {
-    /*
-        开始战斗入口
-        控制是否继续刷怪的整体流程
-    */
+    private enum BattleResult
+    {
+        Victory,
+        Retreat,
+        Defeat
+    }
+
     public static void StartBattle()
     {
-        // 玩家血量不足时无法进入战斗
         if (PlayerStatistics.Hp <= 0)
         {
             Console.WriteLine("你的HP不足，帮你回到选择页面");
             Program.Loading();
             return;
         }
-        
-        // 玩家存活时可以连续刷怪
+
         while (PlayerStatistics.Hp > 0)
         {
-            // 从怪物工厂随机生成怪物
             var monster = MonsterFactory.Monster;
-            
-            // 进入单次战斗流程
-            Start(monster);
+            BattleResult result = Fight(monster);
 
-            Console.WriteLine("是否继续刷怪？（选择Y/y则继续，否则返回菜单）");
-            char choice = Console.ReadKey().KeyChar;
+            if (result == BattleResult.Defeat)
+            {
+                Console.WriteLine("你回到了营地，治疗后再来挑战吧。");
+                Program.Loading();
+                return;
+            }
 
-            // 非 Y 则退出刷怪循环
-            if (choice != 'Y' && choice != 'y')
+            Console.WriteLine("是否继续刷怪？输入 Y 继续，其他任意输入返回菜单：");
+            string? choice = Console.ReadLine();
+            if (!string.Equals(choice?.Trim(), "Y", StringComparison.OrdinalIgnoreCase))
             {
                 Program.Loading();
-                break;
+                return;
             }
         }
     }
-    
-    /*
-        单次战斗流程
-        玩家与指定怪物进行回合制战斗
-    */
-    private static void Start(MonsterStatistics monster)
+
+    private static BattleResult Fight(MonsterStatistics monster)
     {
-        // 显示怪物信息面板
         Console.Clear();
         Console.WriteLine($"你遇到了 {monster.Name}");
         Console.WriteLine($"等级：{monster.Level}");
         Console.WriteLine($"血量 {monster.Hp}/{monster.MaxHp}");
         Console.WriteLine($"攻击力 {monster.Attack}");
         Console.WriteLine($"预计获得经验值：{monster.ExpReward}");
-        Console.WriteLine("按任意键进入战斗！");
-        Console.ReadKey();
+        Console.WriteLine("按回车进入战斗！");
+        Console.ReadLine();
 
-        bool monsterCanBattle = true;
-
-        // 战斗主循环：双方存活并且没有撤退
-        while ((PlayerStatistics.Hp > 0 && monster.Hp > 0) && monsterCanBattle)
+        while (PlayerStatistics.Hp > 0 && monster.Hp > 0)
         {
             Console.Clear();
-
-            // 显示双方状态
-            Console.WriteLine($"{PlayerStatistics.Name}");
-            Console.WriteLine($"{PlayerStatistics.Level}");
-            Console.WriteLine($"{PlayerStatistics.Hp}/{PlayerStatistics.MaxHp}");
+            Console.WriteLine($"{PlayerStatistics.Name}  Lv.{PlayerStatistics.Level}");
+            Console.WriteLine($"HP：{PlayerStatistics.Hp}/{PlayerStatistics.MaxHp}");
             Console.WriteLine("=======================");
-            Console.WriteLine($"{monster.Name}");
-            Console.WriteLine($"{monster.Level}");
-            Console.WriteLine($"{monster.Hp}/{monster.MaxHp}");
+            Console.WriteLine($"{monster.Name}  Lv.{monster.Level}");
+            Console.WriteLine($"HP：{monster.Hp}/{monster.MaxHp}");
             Console.WriteLine("=======================");
+            Console.WriteLine("普通攻击（A）| 治疗（D）| 撤退（F）");
+            Console.Write("请选择行动：");
 
-            Console.WriteLine("注：只能选对应按键，否则直接退出战斗！");
-            Console.WriteLine("普通攻击（a/A）| 治疗（d/D）| 退出（f/F）");
+            string? action = Console.ReadLine();
+            bool retreated = false;
 
-            char battleOption = Console.ReadKey().KeyChar;
-
-            // 玩家回合
-            switch (battleOption)
+            switch (action?.Trim().ToUpperInvariant())
             {
-                case 'A':
-                case 'a':
-                    // 玩家普通攻击
-                    monster.Hp -= PlayerStatistics.Attack;
+                case "A":
+                    monster.Hp = Math.Max(0, monster.Hp - PlayerStatistics.Attack);
                     Console.WriteLine($"你攻击了 {monster.Name}，造成 {PlayerStatistics.Attack} 点伤害！");
                     break;
-
-                case 'D':
-                case 'd':
-                    // 玩家治疗
-                    PlayerStatistics.Hp += PlayerStatistics.Treatment;
-                    if (PlayerStatistics.Hp > PlayerStatistics.MaxHp)
-                    {
-                        PlayerStatistics.Hp = PlayerStatistics.MaxHp;
-                    }
-                    Console.WriteLine($"你治疗了自己，恢复 {PlayerStatistics.Treatment} HP");
+                case "D":
+                    double healed = PlayerStatistics.Heal(PlayerStatistics.Treatment);
+                    Console.WriteLine($"你治疗了自己，恢复 {healed} HP");
                     break;
-
-                case 'F':
-                case 'f':
-                    // 玩家撤退
+                case "F":
                     Console.WriteLine("你选择了撤退");
-                    monsterCanBattle = false;
+                    retreated = true;
                     break;
-
                 default:
-                    // 非法操作直接结束战斗
-                    Console.WriteLine("无效操作！帮你回到选择页面");
-                    monsterCanBattle = false;
+                    Console.WriteLine("无效操作，本回合你犹豫了一下。");
                     break;
             }
 
-            // 胜利判定
+            if (retreated)
+            {
+                return BattleResult.Retreat;
+            }
+
             if (monster.Hp <= 0)
             {
-                monster.Hp = 0;
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine($"你击败了 {monster.Name}！");
                 Console.ResetColor();
-
-                // 给予经验并自动升级
                 UpLevel.GainExp(monster.ExpReward);
-                break;
-            }
-            
-            // 怪物回合
-            if (monsterCanBattle && monster.Hp > 0)
-            {
-                // 隐式防御：玩家等级作为减伤
-                double damage = monster.Attack - PlayerStatistics.Level;
-
-                if (damage < 1)
-                {
-                    damage = 1;
-                }
-
-                PlayerStatistics.Hp -= damage;
-
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"{monster.Name} 反击你，造成 {damage} 点伤害");
-                Console.ResetColor();
+                return BattleResult.Victory;
             }
 
-            // 失败判定
+            double damage = PlayerStatistics.TakeDamage(monster.Attack - PlayerStatistics.Level);
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"{monster.Name} 反击你，造成 {damage} 点伤害");
+            Console.ResetColor();
+
             if (PlayerStatistics.Hp <= 0)
             {
-                PlayerStatistics.Hp = 0;
+                PlayerStatistics.Exp = Math.Max(0, PlayerStatistics.Exp * 0.9);
                 Console.ForegroundColor = ConsoleColor.DarkRed;
-                Console.WriteLine("\n你倒下了……");
+                Console.WriteLine("你倒下了……经验值损失 10%。");
                 Console.ResetColor();
-
-                // 死亡惩罚
-                PlayerStatistics.Hp = PlayerStatistics.MaxHp;
-                PlayerStatistics.Exp -= PlayerStatistics.Exp * 0.1;
-                break;
+                return BattleResult.Defeat;
             }
-            
-            Console.WriteLine("\n按任意键进入下一回合");
-            Console.ReadKey();
+
+            Console.WriteLine("按回车进入下一回合");
+            Console.ReadLine();
         }
+
+        return PlayerStatistics.Hp <= 0 ? BattleResult.Defeat : BattleResult.Retreat;
     }
 }
