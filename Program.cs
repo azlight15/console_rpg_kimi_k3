@@ -8,29 +8,27 @@ namespace Console_RPG;
 */
 public static class Program
 {
-    // 控制游戏是否继续运行
     private static bool _running = true;
-    
-    /*
-        游戏入口方法
-        初始化菜单并进入主循环
-    */
-    private static void Main()
-    {
-        StartMenu();     // 输入玩家名字
-        GameConfirmed(); // 显示初始状态确认
+    private static bool _selfTest;
 
-        // 游戏主循环
+    private static void Main(string[] args)
+    {
+        _selfTest = Array.IndexOf(args, "--self-test") >= 0;
+        if (_selfTest)
+        {
+            SelfTest.Run();
+            return;
+        }
+
+        StartMenu();
+        GameConfirmed();
+
         while (_running)
         {
             OptionsMenu();
         }
     }
-    
-    /*
-        开始菜单
-        负责获取玩家名字并做基本校验
-    */
+
     private static void StartMenu()
     {
         Console.Clear();
@@ -40,22 +38,17 @@ public static class Program
         Console.WriteLine("=================================");
         Console.Write("请输入你的名字（取了名字后不能更改！）：");
 
-        PlayerStatistics.Name = Console.ReadLine()!;
+        PlayerStatistics.Name = Console.ReadLine() ?? "";
 
-        // 防止输入空字符串或空格
         while (string.IsNullOrWhiteSpace(PlayerStatistics.Name))
         {
             Console.ForegroundColor = ConsoleColor.Red;
             Console.Write("\n不能只输入空格或直接回车！请重新输入你的名字：");
             Console.ResetColor();
-            PlayerStatistics.Name = Console.ReadLine()!;
+            PlayerStatistics.Name = Console.ReadLine() ?? "";
         }
     }
 
-    /*
-        游戏开始前的确认页面
-        展示玩家初始属性
-    */
     private static void GameConfirmed()
     {
         Console.Clear();
@@ -67,14 +60,10 @@ public static class Program
         Console.WriteLine($"攻击值：{PlayerStatistics.Attack}");
         Console.WriteLine($"那么祝你玩的开心，{PlayerStatistics.Name}勇者！");
         Console.WriteLine("=================================");
-        Console.WriteLine("按下任意键开始游戏");
-        Console.ReadKey();
+        Console.WriteLine("按下回车开始游戏");
+        Console.ReadLine();
     }
 
-    /*
-        主菜单页面
-        根据玩家输入分发到不同功能模块
-    */
     private static void OptionsMenu()
     {
         Console.Clear();
@@ -89,53 +78,62 @@ public static class Program
         Console.WriteLine("6.读档");
         Console.WriteLine("7.退出游戏");
         Console.WriteLine("==========================");
-        Console.Write("请选择选项：");
 
-        int options = Convert.ToInt32(Console.ReadLine());
-
-        switch (options)
+        switch (ReadMenuChoice())
         {
             case 1:
-                Battle.StartBattle();   // 进入战斗模块
+                Battle.StartBattle();
                 break;
             case 2:
-                UpLevel.GainExp(100);    // 测试用升级
+                UpLevel.GainExp(100);
                 break;
             case 3:
-                Heal._Heal();              // 治疗玩家
+                Heal._Heal();
                 break;
             case 4:
-                ShowStatus._ShowStatus();  // 显示玩家状态
+                ShowStatus.Show();
                 break;
             case 5:
-                SaveManager.Save();     // 保存游戏
+                SaveManager.Save();
                 break;
             case 6:
-                SaveManager.Load();     // 读取存档
+                SaveManager.Load();
                 break;
             case 7:
                 Console.Clear();
                 Console.WriteLine("欢迎再次玩Console RPG，谢谢");
                 Console.WriteLine("那么下次再见，勇者！");
-                _running = false;       // 结束主循环
-                break;
-            default:
-                // 输入非法时重新输入
-                while (options > 7 || options < 1)
-                {
-                    Console.Write("\n输入错误，请重新输入：");
-                    options = Convert.ToInt32(Console.ReadLine());
-                }
+                _running = false;
                 break;
         }
     }
 
-    /*
-        等待用户输入后返回主菜单
-    */
+    private static int ReadMenuChoice()
+    {
+        while (true)
+        {
+            Console.Write("请选择选项：");
+            string? input = Console.ReadLine();
+
+            if (int.TryParse(input, out int option) && option is >= 1 and <= 7)
+            {
+                return option;
+            }
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("输入错误，请输入 1 到 7 的数字。");
+            Console.ResetColor();
+        }
+    }
+
     public static void Loading()
     {
-        Console.WriteLine("按下任意键回到选择页面");
-        Console.ReadKey();
+        if (_selfTest)
+        {
+            return;
+        }
+
+        Console.WriteLine("按下回车回到选择页面");
+        Console.ReadLine();
     }
 }

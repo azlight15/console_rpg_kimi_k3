@@ -4,51 +4,51 @@ namespace Console_RPG;
 
 /*
     UpLevel 负责管理玩家经验获取与升级逻辑。
-    当玩家获得经验后，会自动判断是否满足升级条件并执行升级。
+    ApplyExp 是纯逻辑：加经验、连续升级、刷新属性，并返回升级次数。
+    GainExp 负责控制台提示，便于战斗和菜单调用。
 */
 public static class UpLevel
 {
-    /*
-        增加玩家经验值
-        并检查是否需要连续升级
-    */
-    public static void GainExp(double getExp)
+    // 纯逻辑版本：不读写控制台，方便自测。
+    public static int ApplyExp(double exp)
     {
-        // 增加经验
-        PlayerStatistics.Exp += getExp;
-        Console.WriteLine($"获得经验 {getExp} 点");
+        if (exp <= 0)
+        {
+            return 0;
+        }
 
-        // 如果经验溢出则连续升级
+        PlayerStatistics.Exp += exp;
+        int levelUps = 0;
+
         while (PlayerStatistics.Exp >= PlayerStatistics.ExpToNextLevel)
         {
-            LevelUp();
-        } // 这个是加了双重保险
+            PlayerStatistics.Exp -= PlayerStatistics.ExpToNextLevel;
+            PlayerStatistics.Level++;
+            PlayerStatistics.MaxHp += 20;
+            PlayerStatistics.Attack += 5;
+            PlayerStatistics.Hp = PlayerStatistics.MaxHp;
+            levelUps++;
+        }
+
+        return levelUps;
     }
 
-    /*
-        执行一次等级提升
-        提升等级并刷新玩家属性
-    */
-    private static void LevelUp()
+    // 控制台交互版本。
+    public static void GainExp(double exp)
     {
-        while (PlayerStatistics.Exp >= PlayerStatistics.ExpToNextLevel)
+        Console.WriteLine($"获得经验 {exp} 点");
+        int levelUps = ApplyExp(exp);
+
+        for (int i = 0; i < levelUps; i++)
         {
-            // 扣除本级所需经验
-            PlayerStatistics.Exp -= PlayerStatistics.ExpToNextLevel;
-
-            // 等级提升
-            PlayerStatistics.Level++;
-
-            // 提升属性
-            PlayerStatistics.MaxHp += 20;     // 最大生命增加
-            PlayerStatistics.Attack += 5;     // 攻击力增加
-            PlayerStatistics.Hp = PlayerStatistics.MaxHp; // 回满血量
-        
-            Console.WriteLine(" ");
-            Console.WriteLine("🎉 升级了！");
+            Console.WriteLine();
+            Console.WriteLine("升级了！");
             Console.WriteLine($"当前等级：{PlayerStatistics.Level}");
             Console.WriteLine("最大HP +20\n攻击值 +5\nHP已回满");
-        
+        }
+
+        if (levelUps > 0)
+        {
             Program.Loading();
         }
     }

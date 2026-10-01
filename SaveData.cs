@@ -16,7 +16,7 @@ namespace Console_RPG;
 */
 public class SaveData
 {
-    public string Name { set; get; } = "";   // 玩家名字
+    public string Name { get; set; } = "";   // 玩家名字
     public int Level { get; set; }           // 等级
     public double Exp { get; set; }          // 当前经验值
     public double Hp { get; set; }           // 当前血量
@@ -31,14 +31,12 @@ public class SaveData
 */
 public static class SaveManager
 {
-    // 存档文件名
-    private const string SaveFile = "save.json";
-    
-    // 保存当前玩家数据到本地文件
-    public static void Save()
+    // 默认存档文件名；测试时可改到临时目录。
+    public static string SavePath { get; set; } = "save.json";
+
+    public static SaveData Snapshot()
     {
-        // 从 PlayerStatistics 中拷贝当前玩家数据
-        var data = new SaveData
+        return new SaveData
         {
             Name = PlayerStatistics.Name,
             Level = PlayerStatistics.Level,
@@ -48,46 +46,75 @@ public static class SaveManager
             Attack = PlayerStatistics.Attack,
             Treatment = PlayerStatistics.Treatment
         };
-
-        // 将数据序列化为 JSON 字符串
-        string json = JsonSerializer.Serialize(data, new JsonSerializerOptions
-        {
-            WriteIndented = true // 格式化输出，方便查看
-        });
-
-        // 写入到本地文件
-        File.WriteAllText(SaveFile, json);
-
-        Console.WriteLine("游戏已保存");
-        Program.Loading();
     }
-    
-    // 从本地文件读取存档并恢复玩家数据
-    public static void Load()
+
+    public static void Restore(SaveData data)
     {
-        // 如果不存在存档文件则提示
-        if (!File.Exists(SaveFile))
+        PlayerStatistics.Name = string.IsNullOrWhiteSpace(data.Name) ? "勇者" : data.Name;
+        PlayerStatistics.Level = Math.Max(1, data.Level);
+        PlayerStatistics.Exp = Math.Max(0, data.Exp);
+        PlayerStatistics.MaxHp = Math.Max(1, data.MaxHp);
+        PlayerStatistics.Hp = Math.Clamp(data.Hp, 0, PlayerStatistics.MaxHp);
+        PlayerStatistics.Attack = Math.Max(1, data.Attack);
+        PlayerStatistics.Treatment = Math.Max(0, data.Treatment);
+    }
+
+    public static bool TrySave(out string error)
+    {
+        try
         {
-            Console.WriteLine("没有找到存档文件");
-            return;
+            string json = JsonSerializer.Serialize(Snapshot(), new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(SavePath, json);
+            error = "";
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryLoad(out string error)
+    {
+        error = "";
+
+        if (!File.Exists(SavePath))
+        {
+            error = "没有找到存档文件";
+            return false;
         }
 
-        // 读取 JSON 文本
-        string json = File.ReadAllText(SaveFile);
+        try
+        {
+            string json = File.ReadAllText(SavePath);
+            SaveData? data = JsonSerializer.Deserialize<SaveData>(json);
+            if (data is null)
+            {
+                error = "存档内容为空";
+                return false;
+            }
 
-        // 反序列化为 SaveData 对象
-        var data = JsonSerializer.Deserialize<SaveData>(json);
+            Restore(data);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
 
-        // 将存档数据还原回 PlayerStatistics
-        PlayerStatistics.Name = data!.Name;
-        PlayerStatistics.Level = data.Level;
-        PlayerStatistics.Exp = data.Exp;
-        PlayerStatistics.Hp = data.Hp;
-        PlayerStatistics.MaxHp = data.MaxHp;
-        PlayerStatistics.Attack = data.Attack;
-        PlayerStatistics.Treatment = data.Treatment;
+    // 控制台交互入口。
+    public static void Save()
+    {
+        Console.WriteLine(TrySave(out string error) ? "游戏已保存" : $"保存失败：{error}");
+        Program.Loading();
+    }
 
-        Console.WriteLine("存档读取成功！");
+    public static void Load()
+    {
+        Console.WriteLine(TryLoad(out string error) ? "存档读取成功！" : error);
         Program.Loading();
     }
 }
